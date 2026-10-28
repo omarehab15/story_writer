@@ -1,0 +1,14 @@
+import pytest
+
+ENV_NAMES = [
+    "LLM_PROVIDER", "OPENROUTER_API_KEY", "GROQ_API_KEY", "GOOGLE_API_KEY", "GEMINI_API_KEY",
+    "LLM_MODEL_LARGE", "LLM_MODEL_SMALL", "LLM_MODEL_VISION", "LLM_JSON_MODE", "LLM_REASONING_EFFORT",
+    "GOOGLE_MODEL_LARGE", "GROQ_MODEL_LARGE", "OPENROUTER_MODEL_LARGE", "ENV_FILE",
+    "OPENROUTER_BASE_URL", "GROQ_BASE_URL", "GOOGLE_BASE_URL", "OPENROUTER_SITE_URL", "OPENROUTER_APP_NAME",
+]
+
+
+@pytest.fixture(autouse=True)
+def clean_env(monkeypatch):
+    for n in ENV_NAMES:
+        monkeypatch.delenv(n, raising=False)

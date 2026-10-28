@@ -1,44 +1,55 @@
-# story-service: Module 4 (S4 Story Writer + Critic)
+# story-service: Module 5 (S5 Cast and Setting) + multi-provider LLM layer
+
+Standalone slice of the Interactive Lesson Stories service. It takes the `script.json` from module 4 and
+produces `cast.json`: one visual design per character and one background/props setting per scene.
+The LLM can be OpenRouter, Groq or Google AI Studio, chosen with one line in `.env`.
+
+## Quick start (uv)
 
 ```bash
-uv sync --all-extras
-uv run pytest -q
-cp .env.example .env
-# Set LLM_ACTIVE_PROVIDER and that provider's API key/model values in .env.
-uv run python scripts/run_s4.py
+cp .env.example .env            # the ONE unified .env
+# edit .env:  LLM_PROVIDER=google|groq|openrouter  and the matching *_API_KEY
+uv sync                         # creates .venv from uv.lock
+uv run llm-check                # one tiny request: verifies provider, key, model, JSON mode
+uv run run-s5                   # runs S5 on the bundled golden script and prints the cast
 ```
 
-## LLM configuration
-
-The real LLM is selected entirely from `.env`. Set `LLM_ACTIVE_PROVIDER` to
-`openrouter`, `google`, or `groq`, then configure the matching API key and role
-models. See `.env.example` for every available setting. `large`, `small`, and
-`vision` can each use a different model; stages select the appropriate role.
-
-Each successful LLM request is appended to `logs/llm_usage.jsonl` by default.
-The record contains the UTC timestamp, provider, model, role, and input/output
-token counts only. Change `LLM_USAGE_LOG_PATH` in `.env` if needed.
-
-`S4_WRITER_MAX_TOKENS` and `S4_CRITIC_MAX_TOKENS` control the maximum output
-tokens requested from the provider (defaults: 7000 and 3000). Lower them if a
-provider reports insufficient credits.
-
-## Reviewing a live S4 run in a notebook
-
-Run the review notebook from the project directory:
+Use the output of module 4 as input:
 
 ```bash
-uv sync --extra notebook
-uv run --extra notebook jupyter lab
+uv run run-s5 --script ../story-service/script_out.json --brief my_brief.json --age-group 9-11 --out cast_out.json
 ```
 
-Open `notebooks/s4_pipeline_review.ipynb`. It displays the input fixture, every
-writer/critic prompt and JSON response, the validation result for each attempt,
-and the final script. It never displays environment variables or API keys.
+Switch provider without touching code: change `LLM_PROVIDER` in `.env`, or one-off:
+`LLM_PROVIDER=groq uv run run-s5` (real environment variables win over the file).
+Share one file between module folders: `ENV_FILE=../.env uv run run-s5`.
 
-- `src/story_service/pipeline/stages/s4_writer.py`: stage (writer, code validation, critic, 3-attempt loop)
-- `src/story_service/validators/script.py`: code checks (all blockers) and Story Critic pass rule
-- `src/story_service/pipeline/models.py`: `Script`, interactions (spec 7.7), `CriticReport`, tolerant upstream inputs
-- `src/story_service/pipeline/prompts/s4_writer.md`, `s4_critic.md`: prompts
-- `tests/unit/test_s4_script.py`: golden, 19 mutations, critic rules, retries, injection
-- `docs/DECISIONS.md`: every ambiguity and how it was resolved
+## Providers
+
+| `LLM_PROVIDER` | Key variable | Endpoint | Default large / small |
+| --- | --- | --- | --- |
+| `google` (AI Studio) | `GOOGLE_API_KEY` (or `GEMINI_API_KEY`) | `generativelanguage.googleapis.com/v1beta/openai/` | `gemini-3.5-flash` / `gemini-3.5-flash-lite` |
+| `openrouter` | `OPENROUTER_API_KEY` | `openrouter.ai/api/v1` | `google/gemini-3.5-flash` / `google/gemini-3.5-flash-lite` |
+| `groq` | `GROQ_API_KEY` | `api.groq.com/openai/v1` | `openai/gpt-oss-120b` / `openai/gpt-oss-20b` |
+
+All three speak the OpenAI chat-completions protocol, so there is one client (`providers/llm/openai_compat.py`).
+Model precedence: `LLM_MODEL_<ROLE>` > `<PROVIDER>_MODEL_<ROLE>` > built-in default. Transient errors
+(429, 5xx, timeouts) retry with 2/4/8/16/32 s backoff (+/-20%), `Retry-After` is honored, JSON mode falls back
+automatically if a model rejects `response_format`, invalid JSON gets one repair attempt.
+Model ids change often: if you get HTTP 404, set the model in `.env`.
+
+## Layout
+
+```
+.env.example                          unified settings (providers, models, limits, other modules' vars)
+src/story_service/core/config.py      Settings (reads .env)
+src/story_service/providers/llm/      base.py, openai_compat.py (3 providers), fake.py (tests)
+src/story_service/pipeline/stages/s5_cast.py    stage: cast LLM -> code checks -> reviewer LLM -> retries
+src/story_service/validators/cast.py            all S5 code checks
+src/story_service/pipeline/prompts/             s5_cast.md, s5_review.md
+src/story_service/assets/catalog.json           STAND-IN catalog (see docs/DECISIONS.md)
+tests/                                          uv run pytest -q   (82 tests, no network)
+```
+
+The LLM layer implements the same `complete_json(...)` interface as module 4, so it can be dropped into
+module 4's `scripts/run_s4.py` (`from story_service.providers.llm import build_llm`).

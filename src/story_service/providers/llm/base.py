@@ -1,9 +1,15 @@
-"""LLM provider interface (spec 11.2). Real adapters are built in milestone M1."""
+"""LLM provider interface (spec 11.2) and the shared provider error."""
 from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable
 
 ModelRole = str  # "large" | "small" | "vision"
+
+
+class ProviderError(Exception):
+    """Non-retryable provider failure (spec error code PROVIDER_ERROR)."""
+
+    code = "PROVIDER_ERROR"
 
 
 @runtime_checkable

@@ -1,13 +1,11 @@
-"""Configurable LLM clients and factory."""
-
-from typing import Any
-
-
-def create_llm(*args: Any, **kwargs: Any):
-    """Lazily import real provider SDKs only when a real client is requested."""
-    from .factory import create_llm as _create_llm
-
-    return _create_llm(*args, **kwargs)
+"""LLM providers. `build_llm()` returns the client for the provider chosen by LLM_PROVIDER."""
+from story_service.core.config import Settings, get_settings
+from story_service.providers.llm.base import LLMClient, ProviderError
+from story_service.providers.llm.openai_compat import PROVIDERS, OpenAICompatLLM
 
 
-__all__ = ["create_llm"]
+def build_llm(settings: Settings | None = None, **kwargs) -> OpenAICompatLLM:
+    return OpenAICompatLLM(settings or get_settings(), **kwargs)
+
+
+__all__ = ["PROVIDERS", "LLMClient", "OpenAICompatLLM", "ProviderError", "build_llm"]

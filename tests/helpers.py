@@ -2,42 +2,36 @@ import copy
 import json
 from pathlib import Path
 
-from story_service.pipeline.models import AgeSpec, Concepts
-from story_service.validators.script import validate_raw_script
+from story_service.pipeline.catalog import Catalog, load_catalog
+from story_service.pipeline.models_s5 import ScriptIn
+from story_service.validators.cast import validate_raw_cast
 
 FIXTURES = Path(__file__).parent / "fixtures"
+CATALOG = load_catalog()
 
 
-def load_inputs(name: str = "golden") -> dict:
-    return json.loads((FIXTURES / "s4" / f"{name}_inputs.json").read_text(encoding="utf-8"))
+def load(name: str) -> dict:
+    """`load("golden/script.json")` -> fixtures/golden/script.json"""
+    return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
 
 
-def load_llm_fixture(name: str) -> dict:
-    return json.loads((FIXTURES / "llm" / name).read_text(encoding="utf-8"))
+def golden_cast() -> dict:
+    return copy.deepcopy(json.loads((FIXTURES / "llm" / "s5_cast.json").read_text(encoding="utf-8")))
 
 
-def golden_script() -> dict:
-    return copy.deepcopy(load_llm_fixture("s4_script.json"))
-
-
-def validate(raw: dict, inputs: dict | None = None):
-    inp = inputs or load_inputs("golden")
-    return validate_raw_script(
-        raw,
-        concepts=Concepts.model_validate(inp["concepts"]),
-        age_spec=AgeSpec.model_validate(inp["age_spec"]),
-        language=inp["intake"]["language"],
-        wps=inp["wps"],
+def validate(raw: dict, script: dict | None = None):
+    return validate_raw_cast(
+        raw, script=ScriptIn.model_validate(script or load("golden/script.json")), catalog=Catalog.model_validate(CATALOG)
     )
 
 
-def failed_names(result: dict) -> set[str]:
-    return {c["name"] for c in result["checks"] if not c["passed"] and c["severity"] != "minor"}
+def failed_names(res: dict) -> set[str]:
+    return {c["name"] for c in res["checks"] if not c["passed"] and c["severity"] != "minor"}
 
 
-def scene(raw: dict, sid: str) -> dict:
-    return next(s for s in raw["scenes"] if s["id"] == sid)
+def char(raw: dict, key: str) -> dict:
+    return next(c for c in raw["characters"] if c["key"] == key)
 
 
-def line(raw: dict, lid: str) -> dict:
-    return next(l for s in raw["scenes"] for l in s["lines"] if l["id"] == lid)
+def setting(raw: dict, sid: str) -> dict:
+    return next(s for s in raw["settings"] if s["scene_id"] == sid)

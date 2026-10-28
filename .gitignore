@@ -2,7 +2,6 @@
 .venv/
 __pycache__/
 .pytest_cache/
-.pytest-tmp/
-*.py[cod]
-script_out.json
-logs/
+.ruff_cache/
+*_out.json
+runs/
